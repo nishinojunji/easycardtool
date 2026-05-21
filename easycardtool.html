@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>データカード表示アプリ (入力対応版)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            overflow: auto; 
+        }
+
+        /* 入力エリアのコントロールパネル */
+        #control-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px;
+            box-sizing: border-box;
+            z-index: 2000; /* カードより常に手前に表示 */
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #input-data {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        #generate-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        #generate-btn:hover {
+            background-color: #2980b9;
+        }
+
+        /* 広大なカード配置エリア（コントロールパネルの分の隙間を上にあける） */
+        #card-container {
+            position: relative;
+            margin-top: 160px; 
+            width: 200px;
+            height: 800px;
+            background-image: radial-gradient(#e0e0e0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* カードの基本スタイル */
+        .card {
+            position: absolute;
+            width: 240px;
+            min-height: 120px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            cursor: grab;
+            user-select: none;
+            box-sizing: border-box;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .card:active {
+            cursor: grabbing;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h3 {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            color: #333;
+            border-bottom: 2px solid #2ecc71;
+            padding-bottom: 5px;
+        }
+
+        .card p {
+            margin: 0;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.4;
+            white-space: pre-wrap; 
+        }
+
+        .card-meta {
+            font-size: 11px;
+            color: #999;
+            margin-bottom: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- データ入力エリア -->
+    <div id="control-panel">
+        <label for="input-data" style="font-weight: bold; color: #333;">ここにサンプルデータを貼り付けてください (最大150件):</label>
+        <textarea id="input-data" placeholder="タイトル1 本文本文 本文1&#10;タイトル2 本文本文2"></textarea>
+        <button id="generate-btn">カードを生成して表示</button>
+    </div>
+
+    <!-- カード表示コンテナ -->
+    <div id="card-container"></div>
+
+    <script>
+        const container = document.getElementById('card-container');
+        const inputData = document.getElementById('input-data');
+        const generateBtn = document.getElementById('generate-btn');
+
+        // 初期のサンプル入力をセットしておく
+        inputData.value = `タイトル1 本文本文 本文1\nタイトル2 本文本文2\nタイトル3 本文本文本文3\nタイトル4 本文本文本文4\nタイ5 本5`;
+
+        // ボタンクリックでカード生成
+        generateBtn.addEventListener('click', () => {
+            // コンテナを一度空にする
+            container.innerHTML = '';
+
+            const rawText = inputData.value.trim();
+            if (!rawText) {
+                alert('データが入力されていません。');
+                return;
+            }
+
+            // 行ごとに分割
+            const lines = rawText.split('\n').filter(line => line.trim() !== '');
+            
+            // 最大150件に制限
+            const targetLines = lines.slice(0, 150);
+
+            targetLines.forEach((line, index) => {
+                const cardNumber = index + 1; // 自動カード番号
+
+                // 最初の空白（半角スペース、全角スペース、タブなど）の位置を見つける
+                const firstSpaceIndex = line.search(/[\s　]/);
+
+                let title = '';
+                let content = '';
+
+                if (firstSpaceIndex === -1) {
+                    // 空白がない場合は行全体をタイトルにする
+                    title = line;
+                    content = '(本文なし)';
+                } else {
+                    // 最初の空白までをタイトル、それ以降を本文にする（本文中の空白はそのまま保持）
+                    title = line.substring(0, firstSpaceIndex).trim();
+                    content = line.substring(firstSpaceIndex).trim();
+                }
+
+                // カード要素の作成
+                const card = document.createElement('div');
+                card.classList.add('card');
+                
+                // 自動番号、タイトル、本文をセット
+                card.innerHTML = `
+                    <div class="card-meta">Card #${cardNumber}</div>
+                    <h3>${title}</h3>
+                    <p>${content}</p>
+                `;
+
+                // 画面上にランダム（重なりすぎない範囲）で初期配置
+                const x = Math.random() * 2500;
+                const y = Math.random() * 2500;
+                card.style.left = `${x}px`;
+                card.style.top = `${y}px`;
+
+                // ドラッグ機能を取り付け
+                makeDraggable(card);
+
+                container.appendChild(card);
+            });
+        });
+
+        // ドラッグ＆ドロップ関数（マウス＆タッチ対応）
+        function makeDraggable(element) {
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            xOffset = parseFloat(element.style.left) || 0;
+            yOffset = parseFloat(element.style.top) || 0;
+
+            element.addEventListener('mousedown', dragStart);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', dragEnd);
+
+            element.addEventListener('touchstart', dragStart, { passive: false });
+            document.addEventListener('touchmove', drag, { passive: false });
+            document.addEventListener('touchend', dragEnd);
+
+            // z-index管理用の共有カウンター
+            if (!window.maxZIndex) window.maxZIndex = 1;
+
+            function dragStart(e) {
+                // クリックされたカードを最前面にする
+                window.maxZIndex++;
+                element.style.zIndex = window.maxZIndex;
+
+                if (e.type === 'touchstart') {
+                    initialX = e.touches[0].clientX - xOffset;
+                    initialY = e.touches[0].clientY - yOffset;
+                } else {
+                    initialX = e.clientX - xOffset;
+                    initialY = e.clientY - yOffset;
+                }
+
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    element.isDragging = true;
+                }
+            }
+
+            function drag(e) {
+                if (element.isDragging) {
+                    e.preventDefault(); 
+
+                    if (e.type === 'touchmove') {
+                        currentX = e.touches[0].clientX - initialX;
+                        currentY = e.touches[0].clientY - initialY;
+                    } else {
+                        currentX = e.clientX - initialX;
+                        currentY = e.clientY - initialY;
+                    }
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    if (xOffset < 0) xOffset = 0;
+                    if (yOffset < 0) yOffset = 0;
+
+                    element.style.left = `${xOffset}px`;
+                    element.style.top = `${yOffset}px`;
+                }
+            }
+
+            function dragEnd() {
+                initialX = xOffset;
+                initialY = yOffset;
+                element.isDragging = false;
+            }
+        }
+
+        // 起動時に初期サンプルデータで一度実行しておく
+        document.getElementById('generate-btn').click();
+    </script>
+</body>
+</html>
