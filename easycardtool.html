@@ -19,11 +19,12 @@
             top: 0;
             left: 0;
             width: 100%;
-            background: #ffffff;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             padding: 15px;
             box-sizing: border-box;
-            z-index: 2000; /* カードより常に手前に表示 */
+            z-index: 2000;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -31,7 +32,7 @@
 
         #input-data {
             width: 100%;
-            height: 100px;
+            height: 80px;
             padding: 10px;
             box-sizing: border-box;
             border: 1px solid #ccc;
@@ -50,62 +51,70 @@
             cursor: pointer;
             font-weight: bold;
             transition: background 0.2s;
+            align-self: flex-start;
         }
 
         #generate-btn:hover {
             background-color: #2980b9;
         }
 
-        /* 広大なカード配置エリア（コントロールパネルの分の隙間を上にあける） */
+        /* 【修正点】画像のような美しい水色の方眼紙（グリッド）背景を設定 */
         #card-container {
             position: relative;
-            margin-top: 160px; 
-            width: 200px;
-            height: 800px;
-            background-image: radial-gradient(#e0e0e0 1px, transparent 1px);
-            background-size: 20px 20px;
+            margin-top: 150px; 
+            width: 3000px;
+            height: 3000px;
+            background-color: #ffffff;
+            /* 縦線と横線を線形グラデーションで表現 */
+            background-image: 
+                linear-gradient(to right, rgba(52, 152, 219, 0.2) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(52, 152, 219, 0.2) 1px, transparent 1px);
+            background-size: 30px 30px; /* グリッドの1マスのサイズ */
         }
 
-        /* カードの基本スタイル */
+        /* カードの基本スタイル（画像のデザインに近づけました） */
         .card {
             position: absolute;
             width: 240px;
-            min-height: 120px;
+            min-height: 130px;
             background: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+            padding: 12px 15px;
             cursor: grab;
             user-select: none;
             box-sizing: border-box;
-            transition: box-shadow 0.2s ease;
+            transition: box-shadow 0.2s ease, transform 0.1s ease;
         }
 
         .card:active {
             cursor: grabbing;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+            transform: scale(1.02); /* 掴んだときに少し浮き上がる演出 */
         }
 
         .card h3 {
-            margin: 0 0 10px 0;
-            font-size: 15px;
-            color: #333;
-            border-bottom: 2px solid #2ecc71;
-            padding-bottom: 5px;
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #1a202c;
+            font-weight: bold;
+            line-height: 1.3;
         }
 
         .card p {
             margin: 0;
-            font-size: 13px;
-            color: #666;
-            line-height: 1.4;
+            font-size: 12px;
+            color: #4a5568;
+            line-height: 1.5;
             white-space: pre-wrap; 
         }
 
         .card-meta {
-            font-size: 11px;
-            color: #999;
-            margin-bottom: 3px;
+            font-size: 10px;
+            color: #a0aec0;
+            margin-bottom: 4px;
+            font-family: monospace;
         }
     </style>
 </head>
@@ -113,9 +122,9 @@
 
     <!-- データ入力エリア -->
     <div id="control-panel">
-        <label for="input-data" style="font-weight: bold; color: #333;">ここにサンプルデータを貼り付けてください (最大150件):</label>
+        <label for="input-data" style="font-weight: bold; color: #333; font-size: 14px;">データを入力（最大150件）:</label>
         <textarea id="input-data" placeholder="タイトル1 本文本文 本文1&#10;タイトル2 本文本文2"></textarea>
-        <button id="generate-btn">カードを生成して表示</button>
+        <button id="generate-btn">データ読み込み</button>
     </div>
 
     <!-- カード表示コンテナ -->
@@ -126,12 +135,11 @@
         const inputData = document.getElementById('input-data');
         const generateBtn = document.getElementById('generate-btn');
 
-        // 初期のサンプル入力をセットしておく
-        inputData.value = `タイトル1 本文本文 本文1\nタイトル2 本文本文2\nタイトル3 本文本文本文3\nタイトル4 本文本文本文4\nタイ5 本5`;
+        // 初期のサンプル入力
+        inputData.value = `タイトル0:画面は広大 スクロールしてね\nタイトル1:商品Aの在庫状況 本文本文本文本文本文本文1.\nタイトル2:顧客Bの連絡先 右側の本文150個.\nタイトル3 新機能の実装スケジュール 本文本文本文本文本文本文1.\nタイトル4:新機能の連絡先 本文本文本文本文本文本文1.`;
 
         // ボタンクリックでカード生成
         generateBtn.addEventListener('click', () => {
-            // コンテナを一度空にする
             container.innerHTML = '';
 
             const rawText = inputData.value.trim();
@@ -140,51 +148,48 @@
                 return;
             }
 
-            // 行ごとに分割
             const lines = rawText.split('\n').filter(line => line.trim() !== '');
-            
-            // 最大150件に制限
             const targetLines = lines.slice(0, 150);
 
             targetLines.forEach((line, index) => {
-                const cardNumber = index + 1; // 自動カード番号
+                // 画像に合わせて3桁のゼロ埋め（例: 001, 002）のIDにする
+                const cardNumber = String(index + 1).padStart(3, '0');
 
-                // 最初の空白（半角スペース、全角スペース、タブなど）の位置を見つける
                 const firstSpaceIndex = line.search(/[\s　]/);
 
                 let title = '';
                 let content = '';
 
                 if (firstSpaceIndex === -1) {
-                    // 空白がない場合は行全体をタイトルにする
                     title = line;
                     content = '(本文なし)';
                 } else {
-                    // 最初の空白までをタイトル、それ以降を本文にする（本文中の空白はそのまま保持）
                     title = line.substring(0, firstSpaceIndex).trim();
                     content = line.substring(firstSpaceIndex).trim();
                 }
 
-                // カード要素の作成
                 const card = document.createElement('div');
                 card.classList.add('card');
                 
-                // 自動番号、タイトル、本文をセット
+                // 画像風の表記（ID: CARD_001）
                 card.innerHTML = `
-                    <div class="card-meta">Card #${cardNumber}</div>
+                    <div class="card-meta">ID: CARD_${cardNumber}</div>
                     <h3>${title}</h3>
                     <p>${content}</p>
                 `;
 
-                // 画面上にランダム（重なりすぎない範囲）で初期配置
-                const x = Math.random() * 2500;
-                const y = Math.random() * 2500;
+                // グリッド線（30px間隔）に綺麗に乗るように、初期位置を30の倍数で計算
+                const gridSpacing = 30;
+                const randomXMultiplier = Math.floor(Math.random() * 80); // 0〜80のランダム値
+                const randomYMultiplier = Math.floor(Math.random() * 80);
+                
+                const x = randomXMultiplier * gridSpacing + 15; // 15pxの余白を足してマスの真ん中に近く
+                const y = randomYMultiplier * gridSpacing + 15;
+
                 card.style.left = `${x}px`;
                 card.style.top = `${y}px`;
 
-                // ドラッグ機能を取り付け
                 makeDraggable(card);
-
                 container.appendChild(card);
             });
         });
@@ -198,9 +203,6 @@
             let xOffset = 0;
             let yOffset = 0;
 
-            xOffset = parseFloat(element.style.left) || 0;
-            yOffset = parseFloat(element.style.top) || 0;
-
             element.addEventListener('mousedown', dragStart);
             document.addEventListener('mousemove', drag);
             document.addEventListener('mouseup', dragEnd);
@@ -209,13 +211,14 @@
             document.addEventListener('touchmove', drag, { passive: false });
             document.addEventListener('touchend', dragEnd);
 
-            // z-index管理用の共有カウンター
             if (!window.maxZIndex) window.maxZIndex = 1;
 
             function dragStart(e) {
-                // クリックされたカードを最前面にする
                 window.maxZIndex++;
                 element.style.zIndex = window.maxZIndex;
+
+                xOffset = parseFloat(element.style.left) || 0;
+                yOffset = parseFloat(element.style.top) || 0;
 
                 if (e.type === 'touchstart') {
                     initialX = e.touches[0].clientX - xOffset;
