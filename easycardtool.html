@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>データカード表示アプリ (入力対応版)</title>
+    <title>データカード表示アプリ (JSONインポート/エクスポート・タイトル設定対応版)</title>
     <style>
         body {
             margin: 0;
@@ -30,6 +30,27 @@
             gap: 10px;
         }
 
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .input-label {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+
+        #data-title-input {
+            width: 100%;
+            padding: 8px 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
         #input-data {
             width: 100%;
             height: 80px;
@@ -41,38 +62,54 @@
             resize: vertical;
         }
 
-        #generate-btn {
-            background-color: #3498db;
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
             color: white;
             border: none;
             padding: 10px 20px;
-            font-size: 16px;
+            font-size: 14px;
             border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
             transition: background 0.2s;
-            align-self: flex-start;
         }
 
-        #generate-btn:hover {
-            background-color: #2980b9;
-        }
+        #generate-btn { background-color: #3498db; }
+        #generate-btn:hover { background-color: #2980b9; }
 
-        /* 【修正点】画像のような美しい水色の方眼紙（グリッド）背景を設定 */
+        #export-btn { background-color: #2ecc71; }
+        #export-btn:hover { background-color: #27ae60; }
+
+        #import-btn-label {
+            background-color: #e67e22;
+            display: inline-block;
+            text-align: center;
+        }
+        #import-btn-label:hover { background-color: #d35400; }
+
+        /* 非表示のファイル入力 */
+        #import-file { display: none; }
+
+        /* 背景設定 */
         #card-container {
             position: relative;
-            margin-top: 150px; 
+            margin-top: 230px; /* コントロールパネルが高くなった分、余白を広げました */
             width: 3000px;
             height: 3000px;
             background-color: #ffffff;
-            /* 縦線と横線を線形グラデーションで表現 */
             background-image: 
                 linear-gradient(to right, rgba(52, 152, 219, 0.2) 1px, transparent 1px),
                 linear-gradient(to bottom, rgba(52, 152, 219, 0.2) 1px, transparent 1px);
-            background-size: 30px 30px; /* グリッドの1マスのサイズ */
+            background-size: 30px 30px;
         }
 
-        /* カードの基本スタイル（画像のデザインに近づけました） */
+        /* カードの基本スタイル */
         .card {
             position: absolute;
             width: 240px;
@@ -91,7 +128,7 @@
         .card:active {
             cursor: grabbing;
             box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
-            transform: scale(1.02); /* 掴んだときに少し浮き上がる演出 */
+            transform: scale(1.02);
         }
 
         .card h3 {
@@ -120,25 +157,60 @@
 </head>
 <body>
 
-    <!-- データ入力エリア -->
     <div id="control-panel">
-        <label for="input-data" style="font-weight: bold; color: #333; font-size: 14px;">データを入力（最大150件）:</label>
-        <textarea id="input-data" placeholder="タイトル1 本文本文 本文1&#10;タイトル2 本文本文2"></textarea>
-        <button id="generate-btn">データ読み込み</button>
+        <div class="input-group">
+            <label for="data-title-input" class="input-label">全体のタイトル (data title):</label>
+            <input type="text" id="data-title-input" value="サンプルデータタイトル" placeholder="全体のタイトルを入力してください">
+        </div>
+
+        <div class="input-group">
+            <label for="input-data" class="input-label">テキストからデータを入力（最大150件）:</label>
+            <textarea id="input-data" placeholder="タイトル1 本文本文 本文1&#10;タイトル2 本文本文2"></textarea>
+        </div>
+
+        <div class="btn-container">
+            <button id="generate-btn" class="btn">テキストから読み込み</button>
+            <button id="export-btn" class="btn">JSONエクスポート</button>
+            <label id="import-btn-label" for="import-file" class="btn">JSONを読み込む</label>
+            <input type="file" id="import-file" accept=".json">
+        </div>
     </div>
 
-    <!-- カード表示コンテナ -->
     <div id="card-container"></div>
 
     <script>
         const container = document.getElementById('card-container');
         const inputData = document.getElementById('input-data');
+        const dataTitleInput = document.getElementById('data-title-input');
         const generateBtn = document.getElementById('generate-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const importFile = document.getElementById('import-file');
 
         // 初期のサンプル入力
         inputData.value = `タイトル0:画面は広大 スクロールしてね\nタイトル1:商品Aの在庫状況 本文本文本文本文本文本文1.\nタイトル2:顧客Bの連絡先 右側の本文150個.\nタイトル3 新機能の実装スケジュール 本文本文本文本文本文本文1.\nタイトル4:新機能の連絡先 本文本文本文本文本文本文1.`;
 
-        // ボタンクリックでカード生成
+        // 共通：カードを1枚作成してコンテナに追加する関数
+        function createCard(title, content, cardNumber, x, y) {
+            const card = document.createElement('div');
+            card.classList.add('card');
+            
+            card.dataset.title = title;
+            card.dataset.text = content;
+            
+            card.innerHTML = `
+                <div class="card-meta">ID: CARD_${cardNumber}</div>
+                <h3>${title}</h3>
+                <p>${content}</p>
+            `;
+
+            card.style.left = `${x}px`;
+            card.style.top = `${y}px`;
+
+            makeDraggable(card);
+            container.appendChild(card);
+        }
+
+        // テキストボタンクリックでカード生成
         generateBtn.addEventListener('click', () => {
             container.innerHTML = '';
 
@@ -152,10 +224,8 @@
             const targetLines = lines.slice(0, 150);
 
             targetLines.forEach((line, index) => {
-                // 画像に合わせて3桁のゼロ埋め（例: 001, 002）のIDにする
                 const cardNumber = String(index + 1).padStart(3, '0');
-
-                const firstSpaceIndex = line.search(/[\s　]/);
+                const firstSpaceIndex = line.search(/[\s ]/);
 
                 let title = '';
                 let content = '';
@@ -168,30 +238,107 @@
                     content = line.substring(firstSpaceIndex).trim();
                 }
 
-                const card = document.createElement('div');
-                card.classList.add('card');
-                
-                // 画像風の表記（ID: CARD_001）
-                card.innerHTML = `
-                    <div class="card-meta">ID: CARD_${cardNumber}</div>
-                    <h3>${title}</h3>
-                    <p>${content}</p>
-                `;
-
-                // グリッド線（30px間隔）に綺麗に乗るように、初期位置を30の倍数で計算
+                // テキストから生成する場合はランダム位置（グリッド上）
                 const gridSpacing = 30;
-                const randomXMultiplier = Math.floor(Math.random() * 80); // 0〜80のランダム値
-                const randomYMultiplier = Math.floor(Math.random() * 80);
-                
-                const x = randomXMultiplier * gridSpacing + 15; // 15pxの余白を足してマスの真ん中に近く
+                const randomXMultiplier = Math.floor(Math.random() * 40);
+                const randomYMultiplier = Math.floor(Math.random() * 40);
+                const x = randomXMultiplier * gridSpacing + 15;
                 const y = randomYMultiplier * gridSpacing + 15;
 
-                card.style.left = `${x}px`;
-                card.style.top = `${y}px`;
-
-                makeDraggable(card);
-                container.appendChild(card);
+                createCard(title, content, cardNumber, x, y);
             });
+        });
+
+        // エクスポートボタンの処理
+        exportBtn.addEventListener('click', () => {
+            const cards = container.querySelectorAll('.card');
+            if (cards.length === 0) {
+                alert('エクスポートするカードがありません。');
+                return;
+            }
+
+            const cardDataArray = Array.from(cards).map(card => {
+                return {
+                    "title": card.dataset.title,
+                    "text": card.dataset.text,
+                    "position": {
+                        "x": parseInt(card.style.left, 10) || 0,
+                        "y": parseInt(card.style.top, 10) || 0
+                    }
+                };
+            });
+
+            const outputData = {
+                "name": dataTitleInput.value.trim() || "data title", // タイトル入力枠から取得
+                "num": cardDataArray.length,
+                "card": cardDataArray
+            };
+
+            const jsonString = JSON.stringify(outputData, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "cards_data.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // 【新機能】JSONファイルのインポート処理
+        importFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // バリデーション
+                    if (!importedData.card || !Array.isArray(importedData.card)) {
+                        alert('無効なJSONフォーマットです。card配列が見つかりません。');
+                        return;
+                    }
+
+                    // 画面を一度クリア
+                    container.innerHTML = '';
+
+                    // 全体のタイトルを設定枠に反映
+                    if (importedData.name) {
+                        dataTitleInput.value = importedData.name;
+                    }
+
+                    // テキストエリアの同期用（おまけ機能：テキストエリアも再現）
+                    let reconstructedText = "";
+
+                    // 各カードを復元
+                    importedData.card.forEach((cardItem, index) => {
+                        const cardNumber = String(index + 1).padStart(3, '0');
+                        const title = cardItem.title || `Untitled`;
+                        const text = cardItem.text || '';
+                        
+                        // 位置の復元 (存在しない場合は初期値0)
+                        const x = cardItem.position && cardItem.position.x !== undefined ? cardItem.position.x : 15;
+                        const y = cardItem.position && cardItem.position.y !== undefined ? cardItem.position.y : 15;
+
+                        createCard(title, text, cardNumber, x, y);
+
+                        // テキストエリア文字列の組み立て
+                        reconstructedText += `${title} ${text}\n`;
+                    });
+
+                    inputData.value = reconstructedText.trim();
+
+                } catch (error) {
+                    alert('JSONファイルの読み込み、または解析に失敗しました。');
+                    console.error(error);
+                }
+                // 同じファイルを連続で選択してもイベントが起きるようにリセット
+                importFile.value = '';
+            };
+            reader.readAsText(file);
         });
 
         // ドラッグ＆ドロップ関数（マウス＆タッチ対応）
